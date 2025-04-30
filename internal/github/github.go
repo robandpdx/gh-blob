@@ -22,7 +22,6 @@ const (
 )
 
 func GetOrgInfo(orgName string) (interface{}, error) {
-	ghlog.Logger.Info("Getting organization information from GitHub")
 
 	// Get environment variables
 	githubToken := os.Getenv("GITHUB_TOKEN")
@@ -102,9 +101,6 @@ func GetOrgInfo(orgName string) (interface{}, error) {
 		return nil, fmt.Errorf("GraphQL error: %s", errMsg)
 	}
 
-	ghlog.Logger.Info("Successfully retrieved organization information",
-		zap.String("organization", orgName))
-
 	return &response.Data, nil
 }
 
@@ -141,7 +137,7 @@ func UploadArchiveToGitHub(ctx context.Context, input UploadArchiveInput) (*Uplo
 		}
 		return uploadArchiveResponse, nil
 	}
-	//return multipartUpload(ctx, blobName, reader, size)
+
 	return nil, fmt.Errorf("multipart upload not implemented")
 }
 
@@ -202,12 +198,6 @@ func simpleUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size 
 		ghlog.Logger.Error("Failed to decode response", zap.Error(err))
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
-
-	// ghlog.Logger.Info("Successfully uploaded file to GitHub",
-	// 	zap.String("blobName", blobName),
-	// 	zap.String("orgId", orgId),
-	// 	zap.String("url", uploadArchiveResponse.URI),
-	// 	zap.Any("size", uploadArchiveResponse.Size))
 
 	return &uploadArchiveResponse, nil
 }
@@ -292,14 +282,6 @@ func DeleteBlobFromGitHub(ctx context.Context, id string) error {
 			ghlog.Logger.Error("failed to close response body", zap.Error(err))
 		}
 	}()
-
-	// body, err := io.ReadAll(resp.Body)
-	// if err != nil {
-	// 	ghlog.Logger.Error("Failed to read response body", zap.Error(err))
-	// 	return fmt.Errorf("failed to read response body: %v", err)
-	// }
-
-	//ghlog.Logger.Debug("Raw response", zap.String("body", string(body)))
 
 	return nil
 }

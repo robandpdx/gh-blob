@@ -55,13 +55,11 @@ func uploadBlob(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to fetch organization information: %w", err)
 	}
 
-	var orgId = orgMap["id"]
 	var orgDatabaseId = orgMap["databaseId"]
 	// convert orgDatabaseId to int
 	orgDatabaseId = int(orgDatabaseId.(float64))
 	// convert orgDatabaseId to string
 	orgDatabaseId = fmt.Sprintf("%v", orgDatabaseId)
-	ghlog.Logger.Info("orgId: " + fmt.Sprintf("%v", orgId))
 
 	uploadArchiveInput := github.UploadArchiveInput{
 		ArchiveFilePath: archiveFilePath,
@@ -91,8 +89,6 @@ func fetchOrgInfo(org string) (map[string]interface{}, error) {
 		ghlog.Logger.Debug("failed to get organization information from GitHub", zap.Error(err))
 		return nil, fmt.Errorf("failed to get organization information from GitHub: %v", err)
 	}
-
-	ghlog.Logger.Info("Organization information from GitHub", zap.Any("orgInfo", orgInfo))
 
 	// Handle the *interface{} case specifically
 	var orgMap map[string]interface{}
