@@ -25,7 +25,7 @@ func GetOrgInfo(orgName string) (interface{}, error) {
 	ghlog.Logger.Info("Getting organization information from GitHub")
 
 	// Get environment variables
-	githubToken := os.Getenv("GITHUB_PAT")
+	githubToken := os.Getenv("GITHUB_TOKEN")
 	githubHost := os.Getenv("GITHUB_API_ENDPOINT")
 
 	if githubHost == "" {
@@ -152,7 +152,7 @@ func simpleUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size 
 	blobName := filepath.Base(reader.(*os.File).Name())
 
 	// Create a new GitHub client
-	githubClient := clients.NewGitHubClient(os.Getenv("GITHUB_PAT"))
+	githubClient := clients.NewGitHubClient(os.Getenv("GITHUB_TOKEN"))
 	client, err := githubClient.GitHubAuth()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
@@ -167,7 +167,7 @@ func simpleUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size 
 
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("User-Agent", "gh-glx-migrator")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("GITHUB_PAT")))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("GITHUB_TOKEN")))
 	req.ContentLength = size
 
 	resp, err := client.Client().Do(req)
@@ -203,13 +203,105 @@ func simpleUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size 
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
 
-	ghlog.Logger.Info("Successfully uploaded file to GitHub",
-		zap.String("blobName", blobName),
-		zap.String("orgId", orgId),
-		zap.String("url", uploadArchiveResponse.URI),
-		zap.Any("size", uploadArchiveResponse.Size))
+	// ghlog.Logger.Info("Successfully uploaded file to GitHub",
+	// 	zap.String("blobName", blobName),
+	// 	zap.String("orgId", orgId),
+	// 	zap.String("url", uploadArchiveResponse.URI),
+	// 	zap.Any("size", uploadArchiveResponse.Size))
 
 	return &uploadArchiveResponse, nil
+}
+
+func DeleteBlobFromGitHub(ctx context.Context, id string) error {
+	ghlog.Logger.Info("Deleting blob from GitHub",
+		zap.String("id", id))
+
+	githubToken := os.Getenv("GITHUB_TOKEN")
+
+	githubClient := clients.NewGitHubClient(githubToken)
+	client, err := githubClient.GitHubAuth()
+	if err != nil {
+		return fmt.Errorf("failed to create GitHub client: %v", err)
+	}
+
+	mutation := `
+	mutation deleteMigrationArchive(
+		$migrationArchiveId: ID!
+		) {
+		deleteMigrationArchive(
+			input: {
+			migrationArchiveId: $migrationArchiveId
+			}
+		) {
+			migrationArchive {
+			id
+			guid
+			name
+			size
+			uri
+			createdAt
+			}
+		}
+	}`
+
+	requestBody := map[string]interface{}{
+		"query": mutation,
+		"variables": map[string]interface{}{
+			"migrationArchiveId": id,
+		},
+		"operationName": "deleteMigrationArchive",
+	}
+
+	jsonBody, err := json.Marshal(requestBody)
+	if err != nil {
+		ghlog.Logger.Error("Failed to marshal request body", zap.Error(err))
+		return fmt.Errorf("failed to marshal request body: %v", err)
+	}
+
+	url := "https://api.github.com/graphql"
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		ghlog.Logger.Error("Failed to create HTTP request", zap.Error(err))
+		return fmt.Errorf("failed to create HTTP request: %v", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", githubToken))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "gh-glx-migrator")
+	req.Header.Set("GraphQL-Features", "octoshift_github_owned_storage")
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := client.Client().Do(req)
+	if err != nil {
+		ghlog.Logger.Error("Failed to make GraphQL request", zap.Error(err))
+		return fmt.Errorf("failed to make GraphQL request: %v", err)
+	}
+
+	// if the response status is not 200, show error message
+	// and the response body and return an error
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected response status: %d, body: %s", resp.StatusCode, func() string {
+			body, _ := io.ReadAll(resp.Body)
+			return string(body)
+		}())
+	}
+
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			ghlog.Logger.Error("failed to close response body", zap.Error(err))
+		}
+	}()
+
+	// body, err := io.ReadAll(resp.Body)
+	// if err != nil {
+	// 	ghlog.Logger.Error("Failed to read response body", zap.Error(err))
+	// 	return fmt.Errorf("failed to read response body: %v", err)
+	// }
+
+	//ghlog.Logger.Debug("Raw response", zap.String("body", string(body)))
+
+	return nil
 }
 
 func logAndReturnError(blobName string, err error) error {

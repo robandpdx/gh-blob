@@ -22,7 +22,7 @@ func main() {
 		cmd.UploadBlob(),
 		//cmd.QueryAllBlobs(),
 		//cmd.QueryBlob(),
-		//cmd.DeleteBlob(),
+		cmd.DeleteBlob(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -39,7 +39,7 @@ func init() {
 		name  string
 		value string
 	}{
-		{"GITHUB_PAT", os.Getenv("GITHUB_PAT")},
+		{"GITHUB_TOKEN", os.Getenv("GITHUB_TOKEN")},
 	}
 
 	var missing []string

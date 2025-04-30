@@ -78,6 +78,7 @@ func uploadBlob(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to upload to GitHub storage: %w", err)
 	}
 	ghlog.Logger.Info("Uploaded archive to GitHub storage successfully")
+	ghlog.Logger.Info("ID: " + uploadArchiveResponse.NodeID)
 	ghlog.Logger.Info("URL: " + uploadArchiveResponse.URI)
 
 	return nil
@@ -118,4 +119,44 @@ func fetchOrgInfo(org string) (map[string]interface{}, error) {
 	}
 
 	return orgMap, nil
+}
+
+func DeleteBlob() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Delete a blob from GitHub",
+		Long: `Delete a blob from GitHub.
+GitHub credentials must be configured via environment variables.`,
+		Example: `gh glx delete-blob --id <blob-id>`,
+		RunE:    deleteBlob,
+	}
+	cmd.Flags().String("id", "", "ID of the blob to delete")
+	err := cmd.MarkFlagRequired("id")
+	if err != nil {
+		ghlog.Logger.Error("failed to mark flag as required", zap.Error(err))
+		return nil
+	}
+	return cmd
+}
+
+func deleteBlob(cmd *cobra.Command, args []string) error {
+	ghlog.Logger.Info("Reading input values for deleting blob from GitHub")
+
+	id, _ := cmd.Flags().GetString("id")
+
+	if id == "" {
+		return fmt.Errorf("ID is required")
+	}
+
+	// Create context with appropriate timeout
+	ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Minute)
+	defer cancel()
+
+	err := github.DeleteBlobFromGitHub(ctx, id)
+	if err != nil {
+		ghlog.Logger.Error("failed to delete blob from GitHub", zap.Error(err))
+		return fmt.Errorf("failed to delete blob from GitHub: %w", err)
+	}
+	ghlog.Logger.Info("Deleted blob from GitHub successfully")
+	return nil
 }
