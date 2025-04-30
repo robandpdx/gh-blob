@@ -283,6 +283,18 @@ func DeleteBlobFromGitHub(ctx context.Context, id string) error {
 		}
 	}()
 
+	// Parse the response
+	var response GraphQLResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	// Check for GraphQL errors
+	if len(response.Errors) > 0 {
+		errMsg := response.Errors[0].Message
+		return fmt.Errorf("GraphQL error: %s", errMsg)
+	}
+
 	return nil
 }
 
