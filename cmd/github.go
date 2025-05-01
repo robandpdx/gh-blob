@@ -50,20 +50,16 @@ func uploadBlob(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get the GitHub org id
-	orgMap, err := fetchOrgInfo(org)
+	orgInfo, err := github.GetOrgInfo(org)
 	if err != nil {
 		return fmt.Errorf("failed to fetch organization information: %w", err)
 	}
 
-	var orgDatabaseId = orgMap["databaseId"]
-	// convert orgDatabaseId to int
-	orgDatabaseId = int(orgDatabaseId.(float64))
-	// convert orgDatabaseId to string
-	orgDatabaseId = fmt.Sprintf("%v", orgDatabaseId)
+	var orgDatabaseId = orgInfo.Organization.DatabaseId
 
 	uploadArchiveInput := github.UploadArchiveInput{
 		ArchiveFilePath: archiveFilePath,
-		OrganizationId:  orgDatabaseId.(string),
+		OrganizationId:  fmt.Sprintf("%d", orgDatabaseId),
 	}
 
 	// Create context with appropriate timeout
@@ -80,41 +76,6 @@ func uploadBlob(cmd *cobra.Command, args []string) error {
 	ghlog.Logger.Info("URL: " + uploadArchiveResponse.URI)
 
 	return nil
-}
-
-// create a fetchOrgInfo function that takes org as input and return orgMap
-func fetchOrgInfo(org string) (map[string]interface{}, error) {
-	orgInfo, err := github.GetOrgInfo(org)
-	if err != nil {
-		ghlog.Logger.Debug("failed to get organization information from GitHub", zap.Error(err))
-		return nil, fmt.Errorf("failed to get organization information from GitHub: %v", err)
-	}
-
-	// Handle the *interface{} case specifically
-	var orgMap map[string]interface{}
-
-	// First try to unwrap the pointer to interface{}
-	if ptr, ok := orgInfo.(*interface{}); ok {
-		// Then try to convert the unwrapped value to map[string]interface{}
-		if unwrapped, ok := (*ptr).(map[string]interface{}); ok {
-			if org, ok := unwrapped["organization"].(map[string]interface{}); ok {
-				orgMap = org
-			}
-		}
-	} else if direct, ok := orgInfo.(map[string]interface{}); ok {
-		// Try direct assertion to map[string]interface{}
-		if org, ok := direct["organization"].(map[string]interface{}); ok {
-			orgMap = org
-		}
-	}
-
-	if orgMap == nil {
-		ghlog.Logger.Error("Could not parse organization data",
-			zap.String("type", fmt.Sprintf("%T", orgInfo)))
-		return nil, fmt.Errorf("failed to parse organization data")
-	}
-
-	return orgMap, nil
 }
 
 func DeleteBlob() *cobra.Command {

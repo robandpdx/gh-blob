@@ -32,3 +32,11 @@ type UploadArchiveResponse struct {
 	URI       string `json:"uri"`
 	CreatedAt string `json:"created_at"`
 }
+type OrgQuery struct {
+	Organization struct {
+		Login      string `graphql:"login"`
+		ID         string `graphql:"id"`
+		Name       string `graphql:"name"`
+		DatabaseId int    `graphql:"databaseId"`
+	} `graphql:"organization(login: $login)"`
+}

@@ -10,8 +10,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/robandpdx/gh-blob/internal/clients"
 	ghlog "github.com/robandpdx/gh-blob/pkg/logger"
+
+	"github.com/shurcooL/graphql"
 
 	"go.uber.org/zap"
 )
@@ -21,87 +24,31 @@ const (
 	DefaultMultipartThreshold int64 = 5000 * 1024 * 1024 // 5 GB
 )
 
-func GetOrgInfo(orgName string) (interface{}, error) {
-
-	// Get environment variables
-	githubToken := os.Getenv("GITHUB_TOKEN")
-	githubHost := os.Getenv("GITHUB_API_ENDPOINT")
-
-	if githubHost == "" {
-		githubHost = "api.github.com"
+func GetOrgInfo(orgName string) (*OrgQuery, error) {
+	opts := api.ClientOptions{
+		Headers: map[string]string{"Accept": "application/json"},
 	}
 
-	githubClient := clients.NewGitHubClient(githubToken)
-	client, err := githubClient.GitHubAuth()
+	client, err := api.NewGraphQLClient(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
+	}
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
 	}
 
-	query := `
-	query($login: String!) {
-			organization(login: $login) {
-					login
-					id
-					name
-					databaseId
-			}
-	}`
+	var query OrgQuery
 
-	requestBody := map[string]interface{}{
-		"query": query,
-		"variables": QueryVariables{
-			Login: orgName,
-		},
+	variables := map[string]interface{}{
+		"login": graphql.String(orgName),
 	}
-
-	jsonBody, err := json.Marshal(requestBody)
+	err = client.Query("RepositoryTags", &query, variables)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request body: %v", err)
+		return nil, fmt.Errorf("failed to query GitHub API: %v", err)
 	}
 
-	url := fmt.Sprintf("https://%s/graphql", githubHost)
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request: %v", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "gh-glx-migrator")
-
-	resp, err := client.Client().Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make GraphQL request: %v", err)
-	}
-
-	// if the response status is not 200, show error message
-	// and the response body and return an error
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response status: %d, body: %s", resp.StatusCode, func() string {
-			body, _ := io.ReadAll(resp.Body)
-			return string(body)
-		}())
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			ghlog.Logger.Error("failed to close response body", zap.Error(err))
-		}
-	}()
-
-	// Parse the response
-	var response GraphQLResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
-	}
-
-	// Check for GraphQL errors
-	if len(response.Errors) > 0 {
-		errMsg := response.Errors[0].Message
-		return nil, fmt.Errorf("GraphQL error: %s", errMsg)
-	}
-
-	return &response.Data, nil
+	return &query, nil
 }
 
 func UploadArchiveToGitHub(ctx context.Context, input UploadArchiveInput) (*UploadArchiveResponse, error) {
