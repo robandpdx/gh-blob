@@ -11,15 +11,6 @@ type QueryVariables struct {
 	Login string `json:"login"`
 }
 
-type OrgResponse struct {
-	Organization struct {
-		Login      string `json:"login"`
-		ID         string `json:"id"`
-		Name       string `json:"name"`
-		DatabaseID int    `json:"databaseId"`
-	} `json:"organization"`
-}
-
 type UploadArchiveInput struct {
 	ArchiveFilePath string
 	OrganizationId  string
@@ -62,4 +53,17 @@ type AllBlobsQuery struct {
 			}
 		} `graphql:"migrationArchives(first: $first, after: $endCursor)"`
 	} `graphql:"organization(login: $login)"`
+}
+
+type BlobQuery struct {
+	Node struct {
+		MigrationArchive struct {
+			ID        string `graphql:"id"`
+			GUID      string `graphql:"guid"`
+			Name      string `graphql:"name"`
+			Size      int    `graphql:"size"`
+			URI       string `graphql:"uri"`
+			CreatedAt string `graphql:"createdAt"`
+		} `graphql:"... on MigrationArchive"`
+	} `graphql:"node(id: $id)"`
 }

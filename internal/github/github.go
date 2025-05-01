@@ -51,6 +51,43 @@ func GetOrgInfo(orgName string) (*OrgQuery, error) {
 	return &query, nil
 }
 
+func QueryBlobFromGitHub(blobId string) (*BlobQuery, error) {
+	opts := api.ClientOptions{
+		Headers: map[string]string{
+			"Accept":           "application/json",
+			"GraphQL-Features": "octoshift_github_owned_storage",
+		},
+	}
+
+	client, err := api.NewGraphQLClient(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
+	}
+
+	var query BlobQuery
+
+	variables := map[string]interface{}{
+		"id": graphql.ID(blobId),
+	}
+	err = client.Query("QueryBlob", &query, variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query GitHub API: %v", err)
+	}
+
+	ghlog.Logger.Info("Blob ID: " + query.Node.MigrationArchive.ID)
+	ghlog.Logger.Info("Blob GUID: " + query.Node.MigrationArchive.GUID)
+	ghlog.Logger.Info("Blob Name: " + query.Node.MigrationArchive.Name)
+	ghlog.Logger.Info("Blob Size: " + fmt.Sprintf("%d", query.Node.MigrationArchive.Size))
+	ghlog.Logger.Info("Blob URI: " + query.Node.MigrationArchive.URI)
+	ghlog.Logger.Info("Blob Created At: " + query.Node.MigrationArchive.CreatedAt)
+
+	return &query, nil
+}
+
 func QueryAllBlobsFromGitHub(orgName string) (*AllBlobsQuery, error) {
 	opts := api.ClientOptions{
 		Headers: map[string]string{

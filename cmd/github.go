@@ -154,3 +154,39 @@ func queryAllBlobs(cmd *cobra.Command, args []string) error {
 
 	return nil
 }
+
+func QueryBlob() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "query",
+		Short: "Query a blob from GitHub",
+		Long: `Query a blob from GitHub.
+GitHub credentials must be configured via environment variables.`,
+		Example: `gh glx query --id <blob-id>`,
+		RunE:    queryBlob,
+	}
+	cmd.Flags().String("id", "", "ID of the blob to query")
+	err := cmd.MarkFlagRequired("id")
+	if err != nil {
+		ghlog.Logger.Error("failed to mark flag as required", zap.Error(err))
+		return nil
+	}
+	return cmd
+}
+func queryBlob(cmd *cobra.Command, args []string) error {
+	ghlog.Logger.Info("Reading input values for querying blob from GitHub")
+
+	id, _ := cmd.Flags().GetString("id")
+
+	if id == "" {
+		return fmt.Errorf("ID is required")
+	}
+
+	_, err := github.QueryBlobFromGitHub(id)
+	if err != nil {
+		ghlog.Logger.Error("failed to query blob from GitHub", zap.Error(err))
+		return fmt.Errorf("failed to query blob from GitHub: %w", err)
+	}
+	ghlog.Logger.Info("Queried blob from GitHub successfully")
+
+	return nil
+}

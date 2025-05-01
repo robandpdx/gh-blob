@@ -21,7 +21,7 @@ func main() {
 	rootCmd.AddCommand(
 		cmd.UploadBlob(),
 		cmd.QueryAllBlobs(),
-		//cmd.QueryBlob(),
+		cmd.QueryBlob(),
 		cmd.DeleteBlob(),
 	)
 

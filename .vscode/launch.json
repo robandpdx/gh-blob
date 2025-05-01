@@ -45,6 +45,19 @@
                 "--org",
                 "mindfulrob",
             ]
+        },
+        {
+            "name": "query",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/main.go",
+            "envFile": "${workspaceFolder}/.env",
+            "args": [
+                "query",
+                "--id",
+                "MA_kgDaACQ1MjYyNDQxOC0wNWEzLTQ5NWYtYjhjYy0yNDFkMzc1MTlhYjY-XXX",
+            ]
         }
     ]
 }

@@ -30,3 +30,7 @@ gh blob delete --id <id>
 gh blob query-all --org <org>
 ```
 
+### Query blob 
+```bash
+gh blob query --id <blob-id>
+```
