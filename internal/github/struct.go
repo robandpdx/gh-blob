@@ -40,3 +40,26 @@ type OrgQuery struct {
 		DatabaseId int    `graphql:"databaseId"`
 	} `graphql:"organization(login: $login)"`
 }
+
+type AllBlobsQuery struct {
+	Organization struct {
+		Login             string `graphql:"login"`
+		ID                string `graphql:"id"`
+		Name              string `graphql:"name"`
+		DatabaseId        int    `graphql:"databaseId"`
+		MigrationArchives struct {
+			PageInfo struct {
+				HasNextPage bool
+				EndCursor   string
+			}
+			Nodes []struct {
+				GUID      string `graphql:"guid"`
+				ID        string `graphql:"id"`
+				Name      string `graphql:"name"`
+				Size      int    `graphql:"size"`
+				URI       string `graphql:"uri"`
+				CreatedAt string `graphql:"createdAt"`
+			}
+		} `graphql:"migrationArchives(first: $first, after: $endCursor)"`
+	} `graphql:"organization(login: $login)"`
+}

@@ -25,6 +25,8 @@ gh blob upload --org <org> --archive-file-path <migration-archive>
 gh blob delete --id <id>
 ```
 
-### List blobs
-This has not yet been implemented. Coming soon!
+### Query all blobs
+```bash
+gh blob query-all --org <org>
+```
 

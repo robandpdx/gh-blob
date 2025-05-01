@@ -43,9 +43,65 @@ func GetOrgInfo(orgName string) (*OrgQuery, error) {
 	variables := map[string]interface{}{
 		"login": graphql.String(orgName),
 	}
-	err = client.Query("RepositoryTags", &query, variables)
+	err = client.Query("GetOrganization", &query, variables)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query GitHub API: %v", err)
+	}
+
+	return &query, nil
+}
+
+func QueryAllBlobsFromGitHub(orgName string) (*AllBlobsQuery, error) {
+	opts := api.ClientOptions{
+		Headers: map[string]string{
+			"Accept":           "application/json",
+			"GraphQL-Features": "octoshift_github_owned_storage",
+		},
+	}
+
+	client, err := api.NewGraphQLClient(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
+	}
+
+	var query AllBlobsQuery
+
+	variables := map[string]interface{}{
+		"login":     graphql.String(orgName),
+		"first":     graphql.Int(50),
+		"endCursor": (*graphql.String)(nil),
+	}
+
+	page := 1
+	blobCount := 0
+	for {
+		err = client.Query("AllBlobs", &query, variables)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query GitHub API: %v", err)
+		}
+		ghlog.Logger.Info("Page: " + fmt.Sprintf("%d", page))
+		for _, blob := range query.Organization.MigrationArchives.Nodes {
+			ghlog.Logger.Info("Blob ID: " + blob.ID)
+			ghlog.Logger.Info("Blob GUID: " + blob.GUID)
+			ghlog.Logger.Info("Blob Name: " + blob.Name)
+			ghlog.Logger.Info("Blob Size: " + fmt.Sprintf("%d", blob.Size))
+			ghlog.Logger.Info("Blob URI: " + blob.URI)
+			ghlog.Logger.Info("Blob Created At: " + blob.CreatedAt)
+			ghlog.Logger.Info("==========================")
+		}
+
+		blobCount += len(query.Organization.MigrationArchives.Nodes)
+
+		if !query.Organization.MigrationArchives.PageInfo.HasNextPage {
+			ghlog.Logger.Info("Total blobs: " + fmt.Sprintf("%d", blobCount))
+			break
+		}
+		variables["endCursor"] = graphql.String(query.Organization.MigrationArchives.PageInfo.EndCursor)
+		page++
 	}
 
 	return &query, nil

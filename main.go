@@ -20,7 +20,7 @@ func main() {
 	// Add commands
 	rootCmd.AddCommand(
 		cmd.UploadBlob(),
-		//cmd.QueryAllBlobs(),
+		cmd.QueryAllBlobs(),
 		//cmd.QueryBlob(),
 		cmd.DeleteBlob(),
 	)

@@ -117,3 +117,40 @@ func deleteBlob(cmd *cobra.Command, args []string) error {
 	ghlog.Logger.Info("Deleted blob from GitHub successfully")
 	return nil
 }
+
+func QueryAllBlobs() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "query-all",
+		Short: "Query all blobs from GitHub",
+		Long: `Query all blobs from GitHub.
+GitHub credentials must be configured via environment variables.`,
+		Example: `gh glx query-all --org my-org`,
+		RunE:    queryAllBlobs,
+	}
+	cmd.Flags().String("org", "", "Owner of the repository")
+	err := cmd.MarkFlagRequired("org")
+	if err != nil {
+		ghlog.Logger.Error("failed to mark flag as required", zap.Error(err))
+		return nil
+	}
+	return cmd
+}
+
+func queryAllBlobs(cmd *cobra.Command, args []string) error {
+	ghlog.Logger.Info("Reading input values for querying all blobs from GitHub")
+
+	org, _ := cmd.Flags().GetString("org")
+
+	if org == "" {
+		return fmt.Errorf("organization is required")
+	}
+
+	_, err := github.QueryAllBlobsFromGitHub(org)
+	if err != nil {
+		ghlog.Logger.Error("failed to query blobs from GitHub", zap.Error(err))
+		return fmt.Errorf("failed to query blobs from GitHub: %w", err)
+	}
+	ghlog.Logger.Info("Queried blobs from GitHub successfully")
+
+	return nil
+}
