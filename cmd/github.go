@@ -19,7 +19,7 @@ func UploadBlob() *cobra.Command {
 		Short: "Upload a blob to GitHub",
 		Long: `Upload a blob to GitHub.
 GitHub credentials must be configured via environment variables.`,
-		Example: `gh glx upload-blob --org my-org --archive-file-path /path/to/archive"`,
+		Example: `gh blob upload --org my-org --archive-file-path /path/to/archive"`,
 		RunE:    uploadBlob,
 	}
 
@@ -84,7 +84,7 @@ func DeleteBlob() *cobra.Command {
 		Short: "Delete a blob from GitHub",
 		Long: `Delete a blob from GitHub.
 GitHub credentials must be configured via environment variables.`,
-		Example: `gh glx delete-blob --id <blob-id>`,
+		Example: `gh blob delete --id <blob-id>`,
 		RunE:    deleteBlob,
 	}
 	cmd.Flags().String("id", "", "ID of the blob to delete")
@@ -124,7 +124,7 @@ func QueryAllBlobs() *cobra.Command {
 		Short: "Query all blobs from GitHub",
 		Long: `Query all blobs from GitHub.
 GitHub credentials must be configured via environment variables.`,
-		Example: `gh glx query-all --org my-org`,
+		Example: `gh blob query-all --org my-org`,
 		RunE:    queryAllBlobs,
 	}
 	cmd.Flags().String("org", "", "Owner of the repository")
@@ -161,7 +161,7 @@ func QueryBlob() *cobra.Command {
 		Short: "Query a blob from GitHub",
 		Long: `Query a blob from GitHub.
 GitHub credentials must be configured via environment variables.`,
-		Example: `gh glx query --id <blob-id>`,
+		Example: `gh blob query --id <blob-id>`,
 		RunE:    queryBlob,
 	}
 	cmd.Flags().String("id", "", "ID of the blob to query")
