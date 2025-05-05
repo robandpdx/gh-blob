@@ -13,7 +13,7 @@ import (
 
 func main() {
 	var rootCmd = &cobra.Command{
-		Use:   "gh-blob",
+		Use:   "gh blob",
 		Short: "GitHub GitLab Migration Tool",
 	}
 
