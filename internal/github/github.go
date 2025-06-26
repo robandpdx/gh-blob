@@ -427,16 +427,11 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 
 	var uploadArchiveResponse UploadArchiveResponse
 
+	// unmarshal the response
 	if err := json.Unmarshal(body, &uploadArchiveResponse); err != nil {
+		ghlog.Logger.Error("Failed to decode response", zap.Error(err))
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
-
-	uploadArchiveResponse.URI = fmt.Sprintf("gei://archive/%s", guid)
-	uploadArchiveResponse.GUID = guid
-	uploadArchiveResponse.NodeID = "Not available"
-	uploadArchiveResponse.Name = blobName
-	uploadArchiveResponse.Size = int(size)
-	uploadArchiveResponse.CreatedAt = finalizeResp.Header.Get("Date")
 
 	return &uploadArchiveResponse, nil
 }

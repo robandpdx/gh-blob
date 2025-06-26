@@ -72,8 +72,12 @@ func uploadBlob(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to upload to GitHub storage: %w", err)
 	}
 	ghlog.Logger.Info("Uploaded archive to GitHub storage successfully")
-	ghlog.Logger.Info("ID: " + uploadArchiveResponse.NodeID)
-	ghlog.Logger.Info("URL: " + uploadArchiveResponse.URI)
+	ghlog.Logger.Info("Blob ID: " + uploadArchiveResponse.NodeID)
+	ghlog.Logger.Info("Blob GUID: " + uploadArchiveResponse.GUID)
+	ghlog.Logger.Info("Blob Name: " + uploadArchiveResponse.Name)
+	ghlog.Logger.Info("Blob Size: " + fmt.Sprintf("%d", uploadArchiveResponse.Size))
+	ghlog.Logger.Info("Blob URI: " + uploadArchiveResponse.URI)
+	ghlog.Logger.Info("Blob Created At: " + uploadArchiveResponse.CreatedAt)
 
 	return nil
 }
