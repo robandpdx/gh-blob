@@ -23,8 +23,8 @@ GitHub credentials must be configured via environment variables.`,
 		RunE:    uploadBlob,
 	}
 
-	cmd.Flags().String("org", "", "Owner of the repository")
-	cmd.Flags().String("archive-file-path", "", "Path to the blob")
+	cmd.Flags().StringP("org", "o", "", "Owner of the repository")
+	cmd.Flags().StringP("archive-file-path", "a", "", "Path to the blob")
 	cmd.Flags().DurationP("timeout", "t", 60*time.Minute, "Timeout for the upload operation (e.g. 30m, 1h15m)")
 
 	err := cmd.MarkFlagRequired("org")
@@ -93,7 +93,7 @@ GitHub credentials must be configured via environment variables.`,
 		Example: `gh blob delete --id <blob-id>`,
 		RunE:    deleteBlob,
 	}
-	cmd.Flags().String("id", "", "ID of the blob to delete")
+	cmd.Flags().StringP("id", "i", "", "ID of the blob to delete")
 	err := cmd.MarkFlagRequired("id")
 	if err != nil {
 		ghlog.Logger.Error("failed to mark flag as required", zap.Error(err))
@@ -130,7 +130,7 @@ GitHub credentials must be configured via environment variables.`,
 		Example: `gh blob query-all --org my-org`,
 		RunE:    queryAllBlobs,
 	}
-	cmd.Flags().String("org", "", "Owner of the repository")
+	cmd.Flags().StringP("org", "o", "", "Owner of the repository")
 	err := cmd.MarkFlagRequired("org")
 	if err != nil {
 		ghlog.Logger.Error("failed to mark flag as required", zap.Error(err))
@@ -167,7 +167,7 @@ GitHub credentials must be configured via environment variables.`,
 		Example: `gh blob query --id <blob-id>`,
 		RunE:    queryBlob,
 	}
-	cmd.Flags().String("id", "", "ID of the blob to query")
+	cmd.Flags().StringP("id", "i", "", "ID of the blob to query")
 	err := cmd.MarkFlagRequired("id")
 	if err != nil {
 		ghlog.Logger.Error("failed to mark flag as required", zap.Error(err))
