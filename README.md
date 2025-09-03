@@ -15,8 +15,17 @@ export GITHUB_TOKEN="<token>"
 ## Usage
 ### Upload
 ```bash
+# Basic (defaults to 60m timeout)
 gh blob upload --org <org> --archive-file-path <migration-archive>
+
+# Custom timeout (duration format: 10m, 45m, 1h30m, etc.)
+gh blob upload --org <org> --archive-file-path <migration-archive> --timeout 45m
+
+# Short flag
+gh blob upload -t 90m --org <org> --archive-file-path <migration-archive>
 ```
+
+The timeout applies to the entire upload operation (including multi-part uploads) and defaults to 60 minutes if not specified.
 
 ### Delete
 ```bash
