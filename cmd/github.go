@@ -19,12 +19,13 @@ func UploadBlob() *cobra.Command {
 		Short: "Upload a blob to GitHub",
 		Long: `Upload a blob to GitHub.
 GitHub credentials must be configured via environment variables.`,
-		Example: `gh blob upload --org my-org --archive-file-path /path/to/archive"`,
+		Example: `gh blob upload --org my-org --archive-file-path /path/to/archive --timeout 45m`,
 		RunE:    uploadBlob,
 	}
 
-	cmd.Flags().String("org", "", "Owner of the repository")
-	cmd.Flags().String("archive-file-path", "", "Path to the blob")
+	cmd.Flags().StringP("org", "o", "", "Owner of the repository")
+	cmd.Flags().StringP("archive-file-path", "a", "", "Path to the blob")
+	cmd.Flags().DurationP("timeout", "t", 60*time.Minute, "Timeout for the upload operation (e.g. 30m, 1h15m)")
 
 	err := cmd.MarkFlagRequired("org")
 	if err != nil {
@@ -62,8 +63,9 @@ func uploadBlob(cmd *cobra.Command, args []string) error {
 		OrganizationId:  fmt.Sprintf("%d", orgDatabaseId),
 	}
 
-	// Create context with appropriate timeout
-	ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Minute)
+	// Create context with user-configurable timeout
+	timeout, _ := cmd.Flags().GetDuration("timeout")
+	ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 	defer cancel()
 
 	uploadArchiveResponse, err := github.UploadArchiveToGitHub(ctx, uploadArchiveInput)
@@ -91,7 +93,7 @@ GitHub credentials must be configured via environment variables.`,
 		Example: `gh blob delete --id <blob-id>`,
 		RunE:    deleteBlob,
 	}
-	cmd.Flags().String("id", "", "ID of the blob to delete")
+	cmd.Flags().StringP("id", "i", "", "ID of the blob to delete")
 	err := cmd.MarkFlagRequired("id")
 	if err != nil {
 		ghlog.Logger.Error("failed to mark flag as required", zap.Error(err))
@@ -109,11 +111,8 @@ func deleteBlob(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("ID is required")
 	}
 
-	// Create context with appropriate timeout
-	ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Minute)
-	defer cancel()
-
-	err := github.DeleteBlobFromGitHub(ctx, id)
+	// Delete the blob (no context needed for this operation now)
+	err := github.DeleteBlobFromGitHub(id)
 	if err != nil {
 		ghlog.Logger.Error("failed to delete blob from GitHub", zap.Error(err))
 		return fmt.Errorf("failed to delete blob from GitHub: %w", err)
@@ -131,7 +130,7 @@ GitHub credentials must be configured via environment variables.`,
 		Example: `gh blob query-all --org my-org`,
 		RunE:    queryAllBlobs,
 	}
-	cmd.Flags().String("org", "", "Owner of the repository")
+	cmd.Flags().StringP("org", "o", "", "Owner of the repository")
 	err := cmd.MarkFlagRequired("org")
 	if err != nil {
 		ghlog.Logger.Error("failed to mark flag as required", zap.Error(err))
@@ -168,7 +167,7 @@ GitHub credentials must be configured via environment variables.`,
 		Example: `gh blob query --id <blob-id>`,
 		RunE:    queryBlob,
 	}
-	cmd.Flags().String("id", "", "ID of the blob to query")
+	cmd.Flags().StringP("id", "i", "", "ID of the blob to query")
 	err := cmd.MarkFlagRequired("id")
 	if err != nil {
 		ghlog.Logger.Error("failed to mark flag as required", zap.Error(err))

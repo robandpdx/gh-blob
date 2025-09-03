@@ -185,7 +185,6 @@ func UploadArchiveToGitHub(ctx context.Context, input UploadArchiveInput) (*Uplo
 		return uploadArchiveResponse, nil
 	}
 
-	return nil, fmt.Errorf("multipart upload not implemented")
 }
 
 func simpleUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size int64) (*UploadArchiveResponse, error) {
@@ -269,6 +268,9 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 		"size":         size,
 	}
 	jsonBody, err := json.Marshal(bodyData)
+	if err != nil {
+		return nil, logAndReturnError(blobName, fmt.Errorf("failed to marshal JSON body: %w", err))
+	}
 
 	// Start the upload
 	url := fmt.Sprintf("https://uploads.github.com/organizations/%s/gei/archive/blobs/uploads", orgId)
@@ -281,11 +283,7 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 	req.Header.Set("User-Agent", "gh-blob")
 	req.Header.Set("GraphQL-Features", "octoshift_github_owned_storage")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("GITHUB_TOKEN")))
-	//req.ContentLength = size
 
-	if err != nil {
-		return nil, logAndReturnError(blobName, fmt.Errorf("failed to marshal JSON body: %w", err))
-	}
 	resp, err := client.Client().Do(req)
 	if err != nil {
 		return nil, logAndReturnError(blobName, fmt.Errorf("failed to upload file: %w", err))
@@ -303,11 +301,6 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 		}
 		defer resp.Body.Close()
 		return nil, fmt.Errorf("unexpected response status: %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	// get the Location header from the response
@@ -420,7 +413,7 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 		return nil, fmt.Errorf("unexpected finalize response status: %d, body: %s", finalizeResp.StatusCode, string(body))
 	}
 
-	body, err = io.ReadAll(finalizeResp.Body)
+	body, err := io.ReadAll(finalizeResp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read finalize response body: %v", err)
 	}
@@ -436,7 +429,7 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 	return &uploadArchiveResponse, nil
 }
 
-func DeleteBlobFromGitHub(ctx context.Context, id string) error {
+func DeleteBlobFromGitHub(id string) error {
 	ghlog.Logger.Info("Deleting blob from GitHub",
 		zap.String("id", id))
 
