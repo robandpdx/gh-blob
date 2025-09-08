@@ -11,11 +11,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var hostname string
+
 func main() {
 	var rootCmd = &cobra.Command{
 		Use:   "gh blob",
 		Short: "GitHub GitLab Migration Tool",
 	}
+
+	// Add persistent flags
+	rootCmd.PersistentFlags().StringVar(&hostname, "hostname", "github.com", "GitHub Enterprise Cloud with Data Residency hostname (e.g. enterprise.ghe.com)")
 
 	// Add commands
 	rootCmd.AddCommand(

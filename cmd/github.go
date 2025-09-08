@@ -45,13 +45,14 @@ func uploadBlob(cmd *cobra.Command, args []string) error {
 
 	org, _ := cmd.Flags().GetString("org")
 	archiveFilePath, _ := cmd.Flags().GetString("archive-file-path")
+	hostname, _ := cmd.Flags().GetString("hostname")
 
 	if _, err := os.Stat(archiveFilePath); os.IsNotExist(err) {
 		return fmt.Errorf("file does not exist: %s", archiveFilePath)
 	}
 
 	// Get the GitHub org id
-	orgInfo, err := github.GetOrgInfo(org)
+	orgInfo, err := github.GetOrgInfo(org, hostname)
 	if err != nil {
 		return fmt.Errorf("failed to fetch organization information: %w", err)
 	}
@@ -68,7 +69,7 @@ func uploadBlob(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 	defer cancel()
 
-	uploadArchiveResponse, err := github.UploadArchiveToGitHub(ctx, uploadArchiveInput)
+	uploadArchiveResponse, err := github.UploadArchiveToGitHub(ctx, uploadArchiveInput, hostname)
 	if err != nil {
 		ghlog.Logger.Error("failed to upload to GitHub storage", zap.Error(err))
 		return fmt.Errorf("failed to upload to GitHub storage: %w", err)
@@ -106,13 +107,14 @@ func deleteBlob(cmd *cobra.Command, args []string) error {
 	ghlog.Logger.Info("Reading input values for deleting blob from GitHub")
 
 	id, _ := cmd.Flags().GetString("id")
+	hostname, _ := cmd.Flags().GetString("hostname")
 
 	if id == "" {
 		return fmt.Errorf("ID is required")
 	}
 
 	// Delete the blob (no context needed for this operation now)
-	err := github.DeleteBlobFromGitHub(id)
+	err := github.DeleteBlobFromGitHub(id, hostname)
 	if err != nil {
 		ghlog.Logger.Error("failed to delete blob from GitHub", zap.Error(err))
 		return fmt.Errorf("failed to delete blob from GitHub: %w", err)
@@ -143,12 +145,13 @@ func queryAllBlobs(cmd *cobra.Command, args []string) error {
 	ghlog.Logger.Info("Reading input values for querying all blobs from GitHub")
 
 	org, _ := cmd.Flags().GetString("org")
+	hostname, _ := cmd.Flags().GetString("hostname")
 
 	if org == "" {
 		return fmt.Errorf("organization is required")
 	}
 
-	_, err := github.QueryAllBlobsFromGitHub(org)
+	_, err := github.QueryAllBlobsFromGitHub(org, hostname)
 	if err != nil {
 		ghlog.Logger.Error("failed to query blobs from GitHub", zap.Error(err))
 		return fmt.Errorf("failed to query blobs from GitHub: %w", err)
@@ -179,12 +182,13 @@ func queryBlob(cmd *cobra.Command, args []string) error {
 	ghlog.Logger.Info("Reading input values for querying blob from GitHub")
 
 	id, _ := cmd.Flags().GetString("id")
+	hostname, _ := cmd.Flags().GetString("hostname")
 
 	if id == "" {
 		return fmt.Errorf("ID is required")
 	}
 
-	_, err := github.QueryBlobFromGitHub(id)
+	_, err := github.QueryBlobFromGitHub(id, hostname)
 	if err != nil {
 		ghlog.Logger.Error("failed to query blob from GitHub", zap.Error(err))
 		return fmt.Errorf("failed to query blob from GitHub: %w", err)
