@@ -65,7 +65,7 @@ func (g *GitlabClientImpl) GitlabAuth() (*gitlab.Client, error) {
 func (g *GitHubClientImpl) GitHubAuth() (*github.Client, error) {
 	if g.githubPAT == "" {
 		logger.Logger.Error("GitHub PAT is not set")
-		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is not set")
+		return nil, fmt.Errorf("GitHub token is required. Provide it via --token flag or GITHUB_TOKEN environment variable")
 	}
 	client := github.NewClient(nil).WithAuthToken(g.githubPAT)
 	if client == nil {
