@@ -46,13 +46,23 @@ func uploadBlob(cmd *cobra.Command, args []string) error {
 	org, _ := cmd.Flags().GetString("org")
 	archiveFilePath, _ := cmd.Flags().GetString("archive-file-path")
 	hostname, _ := cmd.Flags().GetString("hostname")
+	token, _ := cmd.Flags().GetString("token")
+
+	// Use --token flag if provided, otherwise fallback to GITHUB_TOKEN environment variable
+	if token == "" {
+		token = os.Getenv("GITHUB_TOKEN")
+	}
+
+	if token == "" {
+		return fmt.Errorf("GitHub token is required. Provide it via --token flag or GITHUB_TOKEN environment variable")
+	}
 
 	if _, err := os.Stat(archiveFilePath); os.IsNotExist(err) {
 		return fmt.Errorf("file does not exist: %s", archiveFilePath)
 	}
 
 	// Get the GitHub org id
-	orgInfo, err := github.GetOrgInfo(org, hostname)
+	orgInfo, err := github.GetOrgInfo(org, hostname, token)
 	if err != nil {
 		return fmt.Errorf("failed to fetch organization information: %w", err)
 	}
@@ -69,7 +79,7 @@ func uploadBlob(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 	defer cancel()
 
-	uploadArchiveResponse, err := github.UploadArchiveToGitHub(ctx, uploadArchiveInput, hostname)
+	uploadArchiveResponse, err := github.UploadArchiveToGitHub(ctx, uploadArchiveInput, hostname, token)
 	if err != nil {
 		ghlog.Logger.Error("failed to upload to GitHub storage", zap.Error(err))
 		return fmt.Errorf("failed to upload to GitHub storage: %w", err)
@@ -108,13 +118,23 @@ func deleteBlob(cmd *cobra.Command, args []string) error {
 
 	id, _ := cmd.Flags().GetString("id")
 	hostname, _ := cmd.Flags().GetString("hostname")
+	token, _ := cmd.Flags().GetString("token")
+
+	// Use --token flag if provided, otherwise fallback to GITHUB_TOKEN environment variable
+	if token == "" {
+		token = os.Getenv("GITHUB_TOKEN")
+	}
+
+	if token == "" {
+		return fmt.Errorf("GitHub token is required. Provide it via --token flag or GITHUB_TOKEN environment variable")
+	}
 
 	if id == "" {
 		return fmt.Errorf("ID is required")
 	}
 
 	// Delete the blob (no context needed for this operation now)
-	err := github.DeleteBlobFromGitHub(id, hostname)
+	err := github.DeleteBlobFromGitHub(id, hostname, token)
 	if err != nil {
 		ghlog.Logger.Error("failed to delete blob from GitHub", zap.Error(err))
 		return fmt.Errorf("failed to delete blob from GitHub: %w", err)
@@ -146,12 +166,22 @@ func queryAllBlobs(cmd *cobra.Command, args []string) error {
 
 	org, _ := cmd.Flags().GetString("org")
 	hostname, _ := cmd.Flags().GetString("hostname")
+	token, _ := cmd.Flags().GetString("token")
+
+	// Use --token flag if provided, otherwise fallback to GITHUB_TOKEN environment variable
+	if token == "" {
+		token = os.Getenv("GITHUB_TOKEN")
+	}
+
+	if token == "" {
+		return fmt.Errorf("GitHub token is required. Provide it via --token flag or GITHUB_TOKEN environment variable")
+	}
 
 	if org == "" {
 		return fmt.Errorf("organization is required")
 	}
 
-	_, err := github.QueryAllBlobsFromGitHub(org, hostname)
+	_, err := github.QueryAllBlobsFromGitHub(org, hostname, token)
 	if err != nil {
 		ghlog.Logger.Error("failed to query blobs from GitHub", zap.Error(err))
 		return fmt.Errorf("failed to query blobs from GitHub: %w", err)
@@ -183,12 +213,22 @@ func queryBlob(cmd *cobra.Command, args []string) error {
 
 	id, _ := cmd.Flags().GetString("id")
 	hostname, _ := cmd.Flags().GetString("hostname")
+	token, _ := cmd.Flags().GetString("token")
+
+	// Use --token flag if provided, otherwise fallback to GITHUB_TOKEN environment variable
+	if token == "" {
+		token = os.Getenv("GITHUB_TOKEN")
+	}
+
+	if token == "" {
+		return fmt.Errorf("GitHub token is required. Provide it via --token flag or GITHUB_TOKEN environment variable")
+	}
 
 	if id == "" {
 		return fmt.Errorf("ID is required")
 	}
 
-	_, err := github.QueryBlobFromGitHub(id, hostname)
+	_, err := github.QueryBlobFromGitHub(id, hostname, token)
 	if err != nil {
 		ghlog.Logger.Error("failed to query blob from GitHub", zap.Error(err))
 		return fmt.Errorf("failed to query blob from GitHub: %w", err)
