@@ -6,9 +6,13 @@ import (
 
 	"github.com/robandpdx/gh-blob/cmd"
 	"github.com/robandpdx/gh-blob/pkg/logger"
-	"go.uber.org/zap"
 
 	"github.com/spf13/cobra"
+)
+
+var (
+	hostname string
+	token    string
 )
 
 func main() {
@@ -16,6 +20,10 @@ func main() {
 		Use:   "gh blob",
 		Short: "GitHub GitLab Migration Tool",
 	}
+
+	// Add persistent flags
+	rootCmd.PersistentFlags().StringVar(&hostname, "hostname", "github.com", "GitHub Enterprise Cloud with Data Residency hostname (e.g. enterprise.ghe.com)")
+	rootCmd.PersistentFlags().StringVar(&token, "token", "", "GitHub Personal Access Token (defaults to GITHUB_TOKEN env var if not provided)")
 
 	// Add commands
 	rootCmd.AddCommand(
@@ -34,25 +42,4 @@ func main() {
 func init() {
 	logger.InitLogger()
 	defer logger.SyncLogger()
-
-	required := []struct {
-		name  string
-		value string
-	}{
-		{"GITHUB_TOKEN", os.Getenv("GITHUB_TOKEN")},
-	}
-
-	var missing []string
-
-	for _, r := range required {
-		if r.value == "" {
-			missing = append(missing, r.name)
-		}
-	}
-
-	if len(missing) > 0 {
-		logger.Logger.Error("Missing required environment variables",
-			zap.Strings("missing", missing))
-		os.Exit(1)
-	}
 }

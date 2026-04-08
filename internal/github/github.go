@@ -25,16 +25,17 @@ const (
 	DefaultMultipartThreshold int64 = 5000 * 1024 * 1024 // 5 GB
 )
 
-func GetOrgInfo(orgName string) (*OrgQuery, error) {
+func GetOrgInfo(orgName, hostname, token string) (*OrgQuery, error) {
 	opts := api.ClientOptions{
 		Headers: map[string]string{"Accept": "application/json"},
+		Host:    hostname,
+	}
+
+	if token != "" {
+		opts.AuthToken = token
 	}
 
 	client, err := api.NewGraphQLClient(opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
-	}
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
 	}
@@ -52,19 +53,20 @@ func GetOrgInfo(orgName string) (*OrgQuery, error) {
 	return &query, nil
 }
 
-func QueryBlobFromGitHub(blobId string) (*BlobQuery, error) {
+func QueryBlobFromGitHub(blobId, hostname, token string) (*BlobQuery, error) {
 	opts := api.ClientOptions{
 		Headers: map[string]string{
 			"Accept":           "application/json",
 			"GraphQL-Features": "octoshift_github_owned_storage",
 		},
+		Host: hostname,
+	}
+
+	if token != "" {
+		opts.AuthToken = token
 	}
 
 	client, err := api.NewGraphQLClient(opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
-	}
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
 	}
@@ -89,19 +91,20 @@ func QueryBlobFromGitHub(blobId string) (*BlobQuery, error) {
 	return &query, nil
 }
 
-func QueryAllBlobsFromGitHub(orgName string) (*AllBlobsQuery, error) {
+func QueryAllBlobsFromGitHub(orgName, hostname, token string) (*AllBlobsQuery, error) {
 	opts := api.ClientOptions{
 		Headers: map[string]string{
 			"Accept":           "application/json",
 			"GraphQL-Features": "octoshift_github_owned_storage",
 		},
+		Host: hostname,
+	}
+
+	if token != "" {
+		opts.AuthToken = token
 	}
 
 	client, err := api.NewGraphQLClient(opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
-	}
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
 	}
@@ -145,7 +148,7 @@ func QueryAllBlobsFromGitHub(orgName string) (*AllBlobsQuery, error) {
 	return &query, nil
 }
 
-func UploadArchiveToGitHub(ctx context.Context, input UploadArchiveInput) (*UploadArchiveResponse, error) {
+func UploadArchiveToGitHub(ctx context.Context, input UploadArchiveInput, hostname, token string) (*UploadArchiveResponse, error) {
 	archiveFilePath := input.ArchiveFilePath
 	orgId := input.OrganizationId
 
@@ -172,13 +175,13 @@ func UploadArchiveToGitHub(ctx context.Context, input UploadArchiveInput) (*Uplo
 
 	var uploadArchiveResponse *UploadArchiveResponse
 	if size < DefaultMultipartThreshold {
-		uploadArchiveResponse, err = simpleUpload(ctx, orgId, reader, size)
+		uploadArchiveResponse, err = simpleUpload(ctx, orgId, reader, size, hostname, token)
 		if err != nil {
 			return nil, err
 		}
 		return uploadArchiveResponse, nil
 	} else {
-		uploadArchiveResponse, err = multipartUpload(ctx, orgId, reader, size)
+		uploadArchiveResponse, err = multipartUpload(ctx, orgId, reader, size, hostname, token)
 		if err != nil {
 			return nil, err
 		}
@@ -187,21 +190,27 @@ func UploadArchiveToGitHub(ctx context.Context, input UploadArchiveInput) (*Uplo
 
 }
 
-func simpleUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size int64) (*UploadArchiveResponse, error) {
+func simpleUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size int64, hostname, token string) (*UploadArchiveResponse, error) {
 	ghlog.Logger.Info("Uploading file to GitHub",
 		zap.String("orgId", fmt.Sprintf("%v", orgId)))
 
 	blobName := filepath.Base(reader.(*os.File).Name())
 
 	// Create a new GitHub client
-	githubClient := clients.NewGitHubClient(os.Getenv("GITHUB_TOKEN"))
+	githubClient := clients.NewGitHubClient(token)
 	client, err := githubClient.GitHubAuth()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
 	}
 
-	// Upload the file
-	url := fmt.Sprintf("https://uploads.github.com/organizations/%s/gei/archive?name=%s", orgId, blobName)
+	// Upload the file - construct URL based on hostname
+	var url string
+	if hostname == "github.com" {
+		url = fmt.Sprintf("https://uploads.github.com/organizations/%s/gei/archive?name=%s", orgId, blobName)
+	} else {
+		// For GHEC+DR, use uploads subdomain pattern similar to github.com
+		url = fmt.Sprintf("https://uploads.%s/organizations/%s/gei/archive?name=%s", hostname, orgId, blobName)
+	}
 	req, err := http.NewRequestWithContext(ctx, "POST", url, reader)
 	if err != nil {
 		return nil, logAndReturnError(blobName, fmt.Errorf("failed to create HTTP request: %w", err))
@@ -209,7 +218,7 @@ func simpleUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size 
 
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("User-Agent", "gh-blob")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("GITHUB_TOKEN")))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.ContentLength = size
 
 	resp, err := client.Client().Do(req)
@@ -248,14 +257,14 @@ func simpleUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size 
 	return &uploadArchiveResponse, nil
 }
 
-func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size int64) (*UploadArchiveResponse, error) {
+func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size int64, hostname, token string) (*UploadArchiveResponse, error) {
 	ghlog.Logger.Info("Uploading file to GitHub",
 		zap.String("orgId", fmt.Sprintf("%v", orgId)))
 
 	blobName := filepath.Base(reader.(*os.File).Name())
 
 	// Create a new GitHub client
-	githubClient := clients.NewGitHubClient(os.Getenv("GITHUB_TOKEN"))
+	githubClient := clients.NewGitHubClient(token)
 	client, err := githubClient.GitHubAuth()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub client: %v", err)
@@ -272,8 +281,14 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 		return nil, logAndReturnError(blobName, fmt.Errorf("failed to marshal JSON body: %w", err))
 	}
 
-	// Start the upload
-	url := fmt.Sprintf("https://uploads.github.com/organizations/%s/gei/archive/blobs/uploads", orgId)
+	// Start the upload - construct URL based on hostname
+	var url string
+	if hostname == "github.com" {
+		url = fmt.Sprintf("https://uploads.github.com/organizations/%s/gei/archive/blobs/uploads", orgId)
+	} else {
+		// For GHEC+DR, use uploads subdomain pattern similar to github.com
+		url = fmt.Sprintf("https://uploads.%s/organizations/%s/gei/archive/blobs/uploads", hostname, orgId)
+	}
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, logAndReturnError(blobName, fmt.Errorf("failed to create HTTP request: %w", err))
@@ -282,7 +297,7 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "gh-blob")
 	req.Header.Set("GraphQL-Features", "octoshift_github_owned_storage")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("GITHUB_TOKEN")))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	resp, err := client.Client().Do(req)
 	if err != nil {
@@ -354,15 +369,21 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 			partBuf = partBuf[:n]
 		}
 
-		// PATCH request to upload this part
-		uploadURL := "https://uploads.github.com" + nextLocation
+		// PATCH request to upload this part - construct URL based on hostname
+		var uploadURL string
+		if hostname == "github.com" {
+			uploadURL = "https://uploads.github.com" + nextLocation
+		} else {
+			// For GHEC+DR, use uploads subdomain pattern similar to github.com
+			uploadURL = "https://uploads." + hostname + nextLocation
+		}
 		req, err := http.NewRequestWithContext(ctx, "PATCH", uploadURL, bytes.NewReader(partBuf))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create PATCH request: %v", err)
 		}
 		req.Header.Set("Content-Type", "application/octet-stream")
 		req.Header.Set("User-Agent", "gh-blob")
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("GITHUB_TOKEN")))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 		req.Header.Set("GraphQL-Features", "octoshift_github_owned_storage")
 		req.ContentLength = int64(len(partBuf))
 
@@ -391,15 +412,21 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 	}
 
 	ghlog.Logger.Info("Finalizing upload...")
-	// Finalize the upload by sending a POST to the last location
-	finalizeURL := "https://uploads.github.com" + lastLocation
+	// Finalize the upload by sending a PUT to the last location - construct URL based on hostname
+	var finalizeURL string
+	if hostname == "github.com" {
+		finalizeURL = "https://uploads.github.com" + lastLocation
+	} else {
+		// For GHEC+DR, use uploads subdomain pattern similar to github.com
+		finalizeURL = "https://uploads." + hostname + lastLocation
+	}
 	finalizeReq, err := http.NewRequestWithContext(ctx, "PUT", finalizeURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create finalize request: %v", err)
 	}
 	finalizeReq.Header.Set("Content-Type", "application/octet-stream")
 	finalizeReq.Header.Set("User-Agent", "gh-blob")
-	finalizeReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("GITHUB_TOKEN")))
+	finalizeReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	finalizeReq.Header.Set("GraphQL-Features", "octoshift_github_owned_storage")
 
 	finalizeResp, err := client.Client().Do(finalizeReq)
@@ -429,13 +456,11 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 	return &uploadArchiveResponse, nil
 }
 
-func DeleteBlobFromGitHub(id string) error {
+func DeleteBlobFromGitHub(id, hostname, token string) error {
 	ghlog.Logger.Info("Deleting blob from GitHub",
 		zap.String("id", id))
 
-	githubToken := os.Getenv("GITHUB_TOKEN")
-
-	githubClient := clients.NewGitHubClient(githubToken)
+	githubClient := clients.NewGitHubClient(token)
 	client, err := githubClient.GitHubAuth()
 	if err != nil {
 		return fmt.Errorf("failed to create GitHub client: %v", err)
@@ -475,7 +500,14 @@ func DeleteBlobFromGitHub(id string) error {
 		return fmt.Errorf("failed to marshal request body: %v", err)
 	}
 
-	url := "https://api.github.com/graphql"
+	// Construct GraphQL URL based on hostname
+	var url string
+	if hostname == "github.com" {
+		url = "https://api.github.com/graphql"
+	} else {
+		// For GHEC+DR, use api subdomain pattern similar to github.com
+		url = fmt.Sprintf("https://api.%s/graphql", hostname)
+	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
 	if err != nil {
@@ -483,7 +515,7 @@ func DeleteBlobFromGitHub(id string) error {
 		return fmt.Errorf("failed to create HTTP request: %v", err)
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", githubToken))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "gh-blob")
 	req.Header.Set("GraphQL-Features", "octoshift_github_owned_storage")
