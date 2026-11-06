@@ -212,17 +212,27 @@ func simpleUpload(ctx context.Context, orgId string, reader io.ReadSeeker, size 
 		// For GHEC+DR, use uploads subdomain pattern similar to github.com
 		url = fmt.Sprintf("https://uploads.%s/organizations/%s/gei/archive?name=%s", hostname, orgId, blobName)
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", url, reader)
+	startOffset, err := reader.Seek(0, io.SeekCurrent)
 	if err != nil {
-		return nil, logAndReturnError(blobName, fmt.Errorf("failed to create HTTP request: %w", err))
+		return nil, logAndReturnError(blobName, fmt.Errorf("failed to get current position: %w", err))
 	}
 
-	req.Header.Set("Content-Type", "application/octet-stream")
-	req.Header.Set("User-Agent", "gh-blob")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	req.ContentLength = size
+	resp, err := doWithRetry(ctx, client.Client(), "simple upload", http.StatusCreated, func() (*http.Request, error) {
+		if _, err := reader.Seek(startOffset, io.SeekStart); err != nil {
+			return nil, fmt.Errorf("failed to reset file position: %w", err)
+		}
+		// The transport closes request bodies; keep the file open for retries.
+		req, err := http.NewRequestWithContext(ctx, "POST", url, io.NopCloser(reader))
+		if err != nil {
+			return nil, logAndReturnError(blobName, fmt.Errorf("failed to create HTTP request: %w", err))
+		}
 
-	resp, err := client.Client().Do(req)
+		req.Header.Set("Content-Type", "application/octet-stream")
+		req.Header.Set("User-Agent", "gh-blob")
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+		req.ContentLength = size
+		return req, nil
+	})
 	if err != nil {
 		return nil, logAndReturnError(blobName, fmt.Errorf("failed to upload file: %w", err))
 	}
@@ -568,7 +578,7 @@ func logAndReturnError(blobName string, err error) error {
 	return fmt.Errorf("upload failed: %w", err)
 }
 
-// Retry settings for multipart part uploads and finalize; vars so tests can shorten them.
+// Retry settings for simple uploads, multipart part uploads and finalize; vars so tests can shorten them.
 var (
 	maxUploadAttempts = 5
 	retryBaseDelay    = 2 * time.Second
