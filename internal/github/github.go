@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/robandpdx/gh-blob/internal/clients"
@@ -377,17 +378,18 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 			// For GHEC+DR, use uploads subdomain pattern similar to github.com
 			uploadURL = "https://uploads." + hostname + nextLocation
 		}
-		req, err := http.NewRequestWithContext(ctx, "PATCH", uploadURL, bytes.NewReader(partBuf))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create PATCH request: %v", err)
-		}
-		req.Header.Set("Content-Type", "application/octet-stream")
-		req.Header.Set("User-Agent", "gh-blob")
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-		req.Header.Set("GraphQL-Features", "octoshift_github_owned_storage")
-		req.ContentLength = int64(len(partBuf))
-
-		resp, err := client.Client().Do(req)
+		resp, err := doWithRetry(ctx, client.Client(), fmt.Sprintf("part %d", partNumber), http.StatusAccepted, func() (*http.Request, error) {
+			req, err := http.NewRequestWithContext(ctx, "PATCH", uploadURL, bytes.NewReader(partBuf))
+			if err != nil {
+				return nil, fmt.Errorf("failed to create PATCH request: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/octet-stream")
+			req.Header.Set("User-Agent", "gh-blob")
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+			req.Header.Set("GraphQL-Features", "octoshift_github_owned_storage")
+			req.ContentLength = int64(len(partBuf))
+			return req, nil
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to upload part %d: %v", partNumber, err)
 		}
@@ -420,16 +422,17 @@ func multipartUpload(ctx context.Context, orgId string, reader io.ReadSeeker, si
 		// For GHEC+DR, use uploads subdomain pattern similar to github.com
 		finalizeURL = "https://uploads." + hostname + lastLocation
 	}
-	finalizeReq, err := http.NewRequestWithContext(ctx, "PUT", finalizeURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create finalize request: %v", err)
-	}
-	finalizeReq.Header.Set("Content-Type", "application/octet-stream")
-	finalizeReq.Header.Set("User-Agent", "gh-blob")
-	finalizeReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	finalizeReq.Header.Set("GraphQL-Features", "octoshift_github_owned_storage")
-
-	finalizeResp, err := client.Client().Do(finalizeReq)
+	finalizeResp, err := doWithRetry(ctx, client.Client(), "finalize", http.StatusCreated, func() (*http.Request, error) {
+		finalizeReq, err := http.NewRequestWithContext(ctx, "PUT", finalizeURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create finalize request: %v", err)
+		}
+		finalizeReq.Header.Set("Content-Type", "application/octet-stream")
+		finalizeReq.Header.Set("User-Agent", "gh-blob")
+		finalizeReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+		finalizeReq.Header.Set("GraphQL-Features", "octoshift_github_owned_storage")
+		return finalizeReq, nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to finalize upload: %v", err)
 	}
@@ -563,4 +566,44 @@ func logAndReturnError(blobName string, err error) error {
 		zap.Error(err))
 
 	return fmt.Errorf("upload failed: %w", err)
+}
+
+// Retry settings for multipart part uploads and finalize; vars so tests can shorten them.
+var (
+	maxUploadAttempts = 5
+	retryBaseDelay    = 2 * time.Second
+)
+
+// doWithRetry sends the request built by newReq, retrying network errors, 429 and 5xx
+// with exponential backoff. The last response or error is returned unchanged so callers
+// keep their existing error handling.
+func doWithRetry(ctx context.Context, httpClient *http.Client, label string, want int, newReq func() (*http.Request, error)) (*http.Response, error) {
+	for attempt := 1; ; attempt++ {
+		req, err := newReq()
+		if err != nil {
+			return nil, err
+		}
+		resp, err := httpClient.Do(req)
+		retryable := err != nil || resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500
+		if (err == nil && resp.StatusCode == want) || !retryable || attempt == maxUploadAttempts {
+			return resp, err
+		}
+
+		reason := ""
+		if err != nil {
+			reason = err.Error()
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			reason = fmt.Sprintf("status %d, body: %s", resp.StatusCode, string(body))
+		}
+		delay := retryBaseDelay << (attempt - 1)
+		ghlog.Logger.Warn(fmt.Sprintf("Upload %s failed (attempt %d/%d), retrying in %s: %s", label, attempt, maxUploadAttempts, delay, reason))
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(delay):
+		}
+	}
 }
