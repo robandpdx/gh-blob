@@ -68,6 +68,7 @@ gh blob upload --token "<token>" --hostname "enterprise.ghe.com" -t 90m -o <org>
 ```
 
 The timeout applies to the entire upload operation (including multi-part uploads) and defaults to 60 minutes if not specified.
+Simple uploads, multipart part uploads, and multipart finalization retry network errors, HTTP 429 responses, and HTTP 5xx responses up to five total attempts with exponential backoff.
 
 ### Delete
 
